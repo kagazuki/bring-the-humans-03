@@ -1,13 +1,32 @@
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
-const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+function executeEntrypoint(): void {
+  const botDirectory = process.env.MAKEFUN_BOT_DIR ?? '/bot';
+  const targetOutputDirectory = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-mkdirSync(OUTPUT_DIR, { recursive: true });
+  mkdirSync(targetOutputDirectory, { recursive: true });
+
+  const sourceVideoConfig = join(botDirectory, 'VIDEO.json');
+  const targetVideoConfig = join(targetOutputDirectory, 'VIDEO.json');
+
+  if (!existsSync(sourceVideoConfig)) {
+    throw new Error(`Critical manifest missing: ${sourceVideoConfig}`);
+  }
+
+  const rawConfig = readFileSync(sourceVideoConfig, 'utf-8');
+  const parsedData = JSON.parse(rawConfig);
+  if (!parsedData.url || !parsedData.url.startsWith('https://www.tiktok.com/')) {
+    throw new Error(`Invalid video payload target: ${parsedData.url}`);
+  }
+
+  copyFileSync(sourceVideoConfig, targetVideoConfig);
+  console.log(`Verified and deployed VIDEO.json destination: ${targetVideoConfig}`);
+}
+
 try {
-  copyFileSync(join(BOT_DIR, 'VIDEO.json'), join(OUTPUT_DIR, 'VIDEO.json'));
-} catch (err) {
-  console.error(`VIDEO.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
+  executeEntrypoint();
+} catch (failureError) {
+  console.error(`Execution halted: ${(failureError as Error).message}`);
   process.exit(1);
 }
